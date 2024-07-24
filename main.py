@@ -24,10 +24,13 @@ def main():
     if stat_predictions and model_summary:
         arima_results(stat_predictions, model_summary)
 
-    twit_data, sent_twit_results, fin_data, sent_fin_results = sentiment_options()
+    # twit_data, sent_twit_results, fin_data, sent_fin_results = sentiment_options()
+    fin_data, sent_fin_results = sentiment_options()
 
-    if sent_twit_results and sent_fin_results:
-        sentiment_results(twit_data, sent_twit_results, fin_data, sent_fin_results)
+    # if sent_twit_results and sent_fin_results:
+    #     sentiment_results(twit_data, sent_twit_results, fin_data, sent_fin_results)
+    if sent_fin_results:
+        fin_sentiment_results(fin_data, sent_fin_results)
 
 
 # Return ticker values if valid
@@ -109,7 +112,7 @@ def ml_options():
                     elif isinstance(value, str) and value != '':
                         model_final[key] = str(value)
 
-                data = {"ticker": ticker_final, "model_options": model_final}
+                data = {"ticker": ticker_final, "keras_model_options": model_final}
 
                 keras_base_url = api_address + "/keras/?"
                 request_url = keras_base_url
@@ -198,28 +201,32 @@ def sentiment_options():
 
         if sentiment_submitted:
             if ticker:
-                sentiment_base_url = api_address + "/sentiment/combined"
-                request_url = sentiment_base_url + "?ticker=" + ticker
+                sentiment_base_url = api_address + "/sentiment/fin-news"
+                request_url = sentiment_base_url + "?ticker=" + ticker.upper()
 
-                url_vals = {"date_start": start_date, "date_end": end_date}
-
-                for key, val in url_vals.items():
-                    if val:
-                        request_url += "&" + key + "=" + str(val)
+                # url_vals = {"date_start": start_date, "date_end": end_date}
+                #
+                # for key, val in url_vals.items():
+                #     if val:
+                #         request_url += "&" + key + "=" + str(val)
 
                 response = requests.get(request_url)
+                print("Response is: ", response.text)
                 results = response.json()
 
                 error_message = {'detail': 'No tweets found'}
 
                 if results != error_message:
-                    return results[0], results[1], results[2], results[3]
+                    # return results[0], results[1], results[2], results[3]
+                    print("Results are: ", results)
+                    return results[0], results[1]
                 else:
                     warning_container.warning("Enter a start date before the end date")
             else:
                 warning_container.warning("Enter a value for ticker, start date and end date")
 
-    return {}, {}, {}, {}
+    return {}, {}
+    # return {}, {}, {}, {}
 
 
 # Display keras results in container
@@ -263,6 +270,41 @@ def arima_results(predictions: dict, summary: dict):
         fig.add_trace(Line(x=predictions_df.index, y=predictions_df['Prediction'], line_color='#000000',
                            name='Predictions Per Day'))
         fig.layout.update(title_text='ARIMA Predictions', xaxis_rangeslider_visible=True, plot_bgcolor='#9fd8fb')
+
+        st.plotly_chart(fig)
+
+
+def fin_sentiment_results(fin_data, fin_per_day):
+    expander_sentiment_results = st.expander("Sentiment Analysis Results")
+
+    with expander_sentiment_results:
+        # Display data for each analysed piece of data for twitter and financial news
+        data_cols = st.columns((1, 1))
+        data_cols[0].header("Twitter")
+        data_cols[0].text("No longer available due to changes from Mr. Musk.")
+
+        data_cols[1].header("Financial News")
+        fin_df = pd.DataFrame.from_dict(fin_data)
+        fin_df['date'] = pd.to_datetime(fin_df['date'], yearfirst=True)  # , format='%Y-%m-%d')
+        fin_df['date'] = fin_df['date'].dt.strftime('%Y/%m/%d')
+        fin_table_df = data_cols[1].dataframe(fin_df, height=400)
+
+        # Display data for compound sentiment per day
+        compound_day_cols = st.columns((1, 1))
+        # compound_day_cols[0].header("Twitter")
+
+        compound_day_cols[1].header("Financial News")
+        fin_day_df = pd.DataFrame.from_dict(fin_per_day)
+        fin_day_df['date'] = pd.to_datetime(fin_day_df['date'], yearfirst=True)  # , format='%Y-%m-%d')
+        fin_day_df['date'] = fin_day_df['date'].dt.strftime('%Y/%m/%d')
+        fin_day_table_df = compound_day_cols[1].table(fin_day_df)
+
+        # Plot data for compound sentiment results per day for titter and fin news on a single graph
+        fig = go.Figure()
+        fig.add_trace(Line(x=fin_day_df['date'], y=fin_day_df['compound'], line_color='#FFA500',
+                           name='Financial news compound sentiment per day'))
+        fig.layout.update(title_text='Sentiment Compound Scores', xaxis_rangeslider_visible=True,
+                          plot_bgcolor='#9fd8fb')
 
         st.plotly_chart(fig)
 
